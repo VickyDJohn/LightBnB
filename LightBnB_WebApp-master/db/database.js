@@ -1,5 +1,13 @@
 const properties = require("./json/properties.json");
 const users = require("./json/users.json");
+const { Pool } = require('pg');
+
+const pool = new Pool({
+  user: 'labber',
+  password: 'labber',
+  host: 'localhost',
+  database: 'lightbnb'
+});
 
 /// Users
 
@@ -72,7 +80,7 @@ const getAllProperties = function (options, limit = 10) {
  * @param {{}} property An object containing all of the property details.
  * @return {Promise<{}>} A promise to the property.
  */
-const addProperty = function (property) {
+const addProperty = (options, limit = 10) => {
   const propertyId = Object.keys(properties).length + 1;
   property.id = propertyId;
   properties[propertyId] = property;
