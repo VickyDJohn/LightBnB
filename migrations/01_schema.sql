@@ -45,3 +45,20 @@ CREATE TABLE IF NOT EXISTS property_reviews (
   rating SMALLINT NOT NULL DEFAULT 0,
   message TEXT
 );
+
+CREATE TABLE IF NOT EXISTS rates (
+  id SERIAL PRIMARY KEY,
+  property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  cost_per_night INTEGER not NULL
+);
+
+CREATE TABLE IF NOT EXISTS guest_reviews (
+  id SERIAL PRIMARY KEY,
+  owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  guest_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  reservation_id INTEGER REFERENCES reservations(id) ON DELETE CASCADE,
+  rating SMALLINT NOT NULL DEFAULT 0,
+  message TEXT
+);
