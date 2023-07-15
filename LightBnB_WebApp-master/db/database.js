@@ -87,14 +87,13 @@ const addUser = function(user) {
 const getAllReservations = function(guest_id, limit = 10) {
   return pool
     .query(`
-    SELECT reservations.id, properties.title as title, properties.cost_per_night, start_date, AVG(property_reviews.rating) as average_rating
+    SELECT reservations.*, properties.*, start_date, AVG(property_reviews.rating) as average_rating
     FROM reservations
     JOIN properties ON properties.id = property_id
     JOIN users ON guest_id = users.id
     JOIN property_reviews ON reservations.guest_id = property_reviews.guest_id
     WHERE reservations.guest_id = $1
-    GROUP BY reservations.id, title, properties.cost_per_night, start_date
-    ORDER BY start_date
+    GROUP BY reservations.id, properties.id
     LIMIT $2;
   `, [guest_id, limit = 10])
     .then(result => {
@@ -118,14 +117,14 @@ const getAllProperties = function(options, limit = 10) {
 
   let queryStr =
     `
-      SELECT properties.*, AVG(property_reviews.rating) AS average_ratings
+      SELECT DISTINCT properties.*, AVG(property_reviews.rating) as average_rating
       FROM properties
       JOIN property_reviews ON property_reviews.property_id = properties.id
     `;
 
   if (options.city) {
     queryParams.push(`%${options.city}%`);
-    queryStr += `WHERE city LIKE $${queryParams.length}`;
+    queryStr += `WHERE city ILIKE $${queryParams.length}`;
   }
 
   if (options.owner_id) {
@@ -133,9 +132,19 @@ const getAllProperties = function(options, limit = 10) {
     queryStr += `${queryParams.length > 1 ? 'AND' : 'WHERE'} owner_id = $${queryParams.length} `;
   }
 
-  if (options.minimum_price_per_night && options.maximum_price_per_night) {
-    queryParams.push(options.minimum_price_per_night, options.maximum_price_per_night);
-    queryStr += `${queryParams.length > 1 ? 'AND' : 'WHERE'} cost_per_night >= $${queryParams.length - 1} AND cost_per_night <= $${queryParams.length} `;
+  if (options.maximum_price_per_night !== undefined && !options.minimum_price_per_night) {
+    const maxPrice = options.maximum_price_per_night * 100;
+    queryParams.push(maxPrice);
+    queryStr += `${queryParams.length > 1 ? 'AND' : 'WHERE'} cost_per_night <= $${queryParams.length} `;
+  } else if (options.minimum_price_per_night !== undefined && !options.maximum_price_per_night) {
+    const minPrice = options.minimum_price_per_night * 100;
+    queryParams.push(minPrice);
+    queryStr += `${queryParams.length > 1 ? 'AND' : 'WHERE'} cost_per_night >= $${queryParams.length} `;
+  } else if (options.minimum_price_per_night !== undefined && options.maximum_price_per_night !== undefined) {
+    const minPrice = options.minimum_price_per_night * 100;
+    const maxPrice = options.maximum_price_per_night * 100;
+    queryParams.push(minPrice, maxPrice);
+    queryStr += `${queryParams.length > 2 ? 'AND' : 'WHERE'} cost_per_night >= $${queryParams.length - 1} AND cost_per_night <= $${queryParams.length} `;
   }
 
   if (options.minimum_rating) {
@@ -179,14 +188,16 @@ const addProperty = (property) => {
     number_of_bedrooms
   } = property;
 
+  const costInCents = cost_per_night * 1000; // Convert cost_per_night to cents
+
   return pool
     .query(`
       INSERT INTO properties (owner_id, title, description, thumbnail_photo_url, cover_photo_url, cost_per_night, street, city, province, post_code, country, parking_spaces, number_of_bathrooms, number_of_bedrooms)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *;
-    `, [owner_id, title, description, thumbnail_photo_url, cover_photo_url, cost_per_night, street, city, province, post_code, country, parking_spaces, number_of_bathrooms, number_of_bedrooms])
+    `, [owner_id, title, description, thumbnail_photo_url, cover_photo_url, costInCents, street, city, province, post_code, country, parking_spaces, number_of_bathrooms, number_of_bedrooms])
     .then(result => {
-      return result.rows[0]; // Return the saved property object
+      return result.rows; // Return the saved property object
     })
     .catch(err => {
       console.log(err.message);
